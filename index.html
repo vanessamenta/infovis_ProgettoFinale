@@ -1,0 +1,228 @@
+<html>
+<head>
+  <title>Segnalazioni nel comune di Roma</title>
+	<meta charset="utf-8">
+	<link rel="stylesheet" href="https://d19vzq90twjlae.cloudfront.net/leaflet/v0.7.7/leaflet.css" />
+  <link rel="stylesheet" href="index.css" />
+	<script src="https://d3js.org/d3.v5.min.js"></script>
+	<script src="https://d19vzq90twjlae.cloudfront.net/leaflet/v0.7.7/leaflet.js"></script>
+	<style type="text/css">
+	 	html, body, #map{
+	 		height: 100%;
+	 		padding: 0;
+	 		margin: 0;
+	 	}
+	</style>
+
+</head>
+<body>
+
+	<div id="map"></map>
+
+
+
+	<script type="text/javascript">
+
+
+  var map = L.map('map').setView([41.9, 12.266], 11);
+    let mapboxAccessToken = 'pk.eyJ1IjoidmFubWVudGEiLCJhIjoiY2tkNW5yd29hMDF6azJwbWJ5NWx0aXlsaiJ9.gACPsYJSJ-YKyb7V0IfzCw';
+	L.tileLayer('https://api.mapbox.com/styles/v1/{id}/tiles/{z}/{x}/{y}?access_token={accessToken}' , {
+		attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors, <a href="https://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, Imagery © <a href="https://www.mapbox.com/">Mapbox</a>',
+    maxZoom: 14,
+    minZoom: 10,
+		id: 'mapbox/streets-v11',
+		tileSize: 512,
+		zoomOffset: -1,
+		accessToken: mapboxAccessToken
+	}).addTo(map);
+
+	d3.json("municipi.geojson").then(getSegnalazioni);
+
+
+
+	function getColor(d) {
+	    return d > 300 ? '#800026' :
+	           d > 250  ? '#BD0026' :
+	           d > 200  ? '#E31A1C' :
+	           d > 150  ? '#FC4E2A' :
+	           d > 100   ? '#FD8D3C' :
+	           d > 50   ? '#FEB24C' :
+	           d > 1   ? '#FED976' :
+	                      '#FFEDA0';
+	}
+
+	let segnalazioni = {}
+
+
+	function style(feature) {
+	    return {
+	        fillColor: getColor(segnalazioni[feature.properties.municipio]),
+	        weight: 2,
+	        opacity: 1,
+	        color: 'white',
+	        dashArray: '3',
+	        fillOpacity: 0.7
+	    };
+	}
+
+	function getSegnalazioni(municipi) {
+		d3.csv("segnalazioni.csv").then( (data) => {
+			data.forEach((value) => {
+				segnalazioni[value.municipio] = value.num_segnalazioni
+
+			})
+
+			addData(municipi, segnalazioni)
+		})
+	 }
+
+   var geojson;
+
+	function addData(municipi,segnalazioni){
+		console.log(segnalazioni)
+
+    geojson = L.geoJson(municipi, {
+    style: style,
+    onEachFeature: onEachFeature
+}).addTo(map);
+	}
+
+  function highlightFeature(e) {
+      var layer = e.target;
+
+      layer.setStyle({
+          weight: 5,
+          color: '#666',
+          dashArray: '',
+          fillOpacity: 0.7
+       });
+
+       if (!L.Browser.ie && !L.Browser.opera && !L.Browser.edge) {
+          layer.bringToFront();
+       }
+      info.update(layer.feature.properties);
+    }
+
+   function resetHighlight(e) {
+        geojson.resetStyle(e.target);
+        info.update();
+   }
+
+
+
+   function showData(e) {
+
+     var margin = {top: 30, right: 30, bottom: 70, left: 60},
+          width = 460 - margin.left - margin.right,
+          height = 400 - margin.top - margin.bottom;
+
+     var svg = d3.select("svg");
+
+     var x = d3.scaleBand()
+              .rangeRound([ 0, width ])
+              .padding(0.1);
+
+     var y = d3.scaleLinear()
+                 .rangeRound([ height, 0]);
+
+     d3.selectAll(".bar").remove();
+     d3.selectAll(".axis").remove();
+     var g= svg.append("g")
+         .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+
+      d3.csv("my_data.csv", function(d, i, columns) {
+         console.log(d);
+         for (var i = 0, n = columns.length; i < n; i++) d[columns[i]] = +d[columns[i]];
+         return d;
+        }).then(function(data) {
+
+
+           var i_mun = e.target.feature.properties.municipio;
+           var dato = data[i_mun-1]
+
+           console.log(dato);
+           var keys = ["trasporti","manutenzione","sicurezza","ambiente","commercio"]
+           x.domain(keys);
+
+           y.domain([0, d3.max(Object.values(dato))]).nice();
+
+          g.append("g")
+              .attr("class", "axis axis--x")
+              .attr("transform", "translate(0," + height + ")")
+              //.attr("width", x.bandwidth())
+              .call(d3.axisBottom(x));
+
+          g.append("g")
+              .attr("class", "axis axis--y")
+              .call(d3.axisLeft(y))
+
+
+
+        keys.forEach(function(key){
+          console.log(key)
+          console.log(x(key))
+          console.log(y(dato[key]))
+          g.append("rect")
+            .attr("class","bar")
+             .attr("x", x(key))
+             .attr("y", y(dato[key]))
+             .attr("width", x.bandwidth())
+             .attr("height", (height -y(dato[key])))
+             .attr("fill", "#FF7F50");
+        })
+
+
+        });
+ }
+
+   function onEachFeature(feature, layer) {
+     layer.on({
+        mouseover: highlightFeature,
+        mouseout: resetHighlight,
+        click: showData
+      });
+    }
+
+   var info = L.control();
+
+   info.onAdd = function (map) {
+        this._div = L.DomUtil.create('div', 'info');
+        this.update();
+        return this._div;
+    };
+
+   info.update = function (props) {
+   this._div.innerHTML = '<h4>Numero di segnalazioni per municipio</h4>' +  (props ?
+       '<b>' + props.nome + '</b><br />' + 'Segnalazioni: ' + segnalazioni[props.municipio] + ' '
+       : 'Seleziona un municipio');
+   };
+
+    info.addTo(map);
+
+  var legend = L.control({position: 'bottomright'});
+
+  legend.onAdd = function (map) {
+    var div = L.DomUtil.create('div', 'info legend'),
+      grades = [1, 50, 100, 150, 200, 250, 300],
+      labels = [],
+      from, to;
+      let style = "width: 18px; height: 18px; float: left; margin-right: 8px; opacity: 0.7;"
+    for (var i = 0; i < grades.length; i++) {
+      from = grades[i];
+      to = grades[i + 1];
+      labels.push(
+        '<i style="background:' + getColor(from + 1) + '; ' + style + '"></i> ' +
+        from + (to ? '&ndash;' + to : '+'));
+    }
+    div.innerHTML = labels.join('<br>');
+    return div;
+  };
+  legend.addTo(map);
+
+
+
+	</script>
+
+</body>
+</html>
